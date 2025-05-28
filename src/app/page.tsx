@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogIn, LogOut, MapPin, History, LayoutDashboard, CheckCircle, AlertCircle, Users, QrCode } from 'lucide-react';
+import { LogIn, LogOut, MapPin, History, LayoutDashboard, CheckCircle, AlertCircle, Users, QrCode, Camera } from 'lucide-react';
 import CurrentDateTime from '@/components/CurrentDateTime';
 import { useToast } from "@/hooks/use-toast";
 
@@ -156,8 +156,13 @@ export default function Home() {
               </Button>
             </Link>
             <Link href="/qr-generator" passHref>
-              <Button variant="outline" className="w-full col-span-1 sm:col-span-2" size="lg">
-                <QrCode className="mr-2 h-5 w-5" /> Generate Attendance QR Code
+              <Button variant="outline" className="w-full" size="lg">
+                <QrCode className="mr-2 h-5 w-5" /> Generate Attendance QR
+              </Button>
+            </Link>
+            <Link href="/scan-qr" passHref>
+              <Button variant="outline" className="w-full" size="lg">
+                <Camera className="mr-2 h-5 w-5" /> Scan Attendance QR
               </Button>
             </Link>
           </CardContent>
