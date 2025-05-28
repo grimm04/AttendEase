@@ -18,6 +18,7 @@ function TakeAttendanceContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [confirmationStatus, setConfirmationStatus] = useState<'success' | 'error' | 'idle'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const userIdFromQuery = searchParams.get('userId');
@@ -39,6 +40,7 @@ function TakeAttendanceContent() {
     if (userId && confirmationStatus === 'idle') {
       setIsLoading(true);
       setErrorMessage(null);
+      setSuccessMessage(null);
       
       const confirmAttendance = async () => {
         try {
@@ -50,57 +52,45 @@ function TakeAttendanceContent() {
             body: JSON.stringify({ userId: parseInt(userId), locationVerified: true }), // Assuming location is verified by QR scan
           });
 
-          let data;
           if (response.ok) {
-            try {
-              data = await response.json();
-              // Further checks on 'data' can be done here if API sends success payloads
-              // that might still indicate logical errors not caught by HTTP status.
-            } catch (jsonParseError: any) {
-              console.error("API response was OK, but failed to parse JSON:", jsonParseError);
-              throw new Error("Received an invalid successful response from the server. Please check console for details.");
+            const data = await response.json();
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('currentUserId', userId);
             }
+            setConfirmationStatus('success');
+            setSuccessMessage(data.message || `Attendance successfully recorded for User ID: ${userId}.`);
+            toast({
+              title: "Attendance Marked!",
+              description: data.message || `Attendance successfully recorded for User ID: ${userId}.`,
+              action: <CheckCircle className="text-green-500" />,
+            });
           } else {
             // response.ok is false (e.g., 4xx, 5xx errors)
             let apiErrorMessage = `Failed to clock in. Status: ${response.status} ${response.statusText}`;
             try {
-              const errorJson = await response.json(); // Try to get a JSON error message from the API
+              const errorJson = await response.json(); 
               if (errorJson && errorJson.error) {
                 apiErrorMessage = errorJson.error;
               }
             } catch (e) {
-              // Failed to parse error response as JSON, it's likely HTML or plain text.
+              // Failed to parse error response as JSON
               const errorText = await response.text();
               console.error(`API error response was not JSON (Status: ${response.status}). Body:`, errorText.substring(0, 500));
               if (errorText.toLowerCase().includes("<!doctype html>")) {
                 apiErrorMessage = "The server returned an HTML error page. This usually indicates a server-side problem or an incorrect API URL.";
               } else if (errorText) {
-                // Keep the error message concise for the user
-                apiErrorMessage = `Server error (status ${response.status}): An unexpected response was received.`;
+                apiErrorMessage = `Server error (status ${response.status}): An unexpected response was received. Please check server logs.`;
               }
-              // else, stick with the default statusText message initially set
             }
             throw new Error(apiErrorMessage);
           }
-          
-          // If we reach here, the operation was successful and 'data' contains the response payload.
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('currentUserId', userId);
-          }
-          setConfirmationStatus('success');
-          toast({
-            title: "Attendance Marked!",
-            description: `Attendance successfully recorded for User ID: ${userId}. Message: ${data.message || ''}`,
-            action: <CheckCircle className="text-green-500" />,
-          });
-
         } catch (err: any) {
-          console.error("Clock-in error:", err);
+          console.error("Clock-in error caught in take-attendance page:", err);
           setErrorMessage(err.message || "An unexpected error occurred while marking attendance.");
           setConfirmationStatus('error');
           toast({
             title: "Clock-In Failed",
-            description: err.message || "Could not record attendance. Please try again.",
+            description: err.message || "Could not record attendance. Please try again or check server logs.",
             variant: "destructive",
           });
         } finally {
@@ -127,7 +117,7 @@ function TakeAttendanceContent() {
   const cardDescriptionText = isLoading
     ? "Please wait while we record your attendance."
     : confirmationStatus === 'success'
-    ? "Your attendance has been successfully recorded."
+    ? successMessage || "Your attendance has been successfully recorded."
     : errorMessage || "There was an issue processing your attendance.";
 
   return (
@@ -183,7 +173,7 @@ function TakeAttendanceContent() {
 
             {(confirmationStatus === 'success' || confirmationStatus === 'error') && !isLoading && (
               <>
-                {confirmationStatus === 'success' && (
+                {confirmationStatus === 'success' && userId && (
                     <Link href={`/history?userId=${userId}`} passHref className="mt-6 block">
                         <Button variant="outline">View My Attendance History</Button>
                     </Link>
@@ -214,4 +204,3 @@ export default function TakeAttendancePage() {
     </Suspense>
   );
 }
-
