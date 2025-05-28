@@ -26,8 +26,25 @@ export default function ReportingDashboardPage() {
         setError(null);
         const response = await fetch('/api/users');
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Failed to fetch users: ${response.statusText}`);
+          let errorMessage = `Failed to fetch users: ${response.status} ${response.statusText}`;
+          try {
+            // Try to parse the error response as JSON
+            const errorData = await response.json();
+            if (errorData && errorData.error) {
+              errorMessage = errorData.error; // Use specific error from API if available
+            }
+          } catch (jsonError) {
+            // If JSON parsing fails, the response body might not be JSON.
+            // Try to get plain text for more context, e.g. if it's an HTML error page.
+            try {
+              const textError = await response.text();
+              // Append a snippet of the text error to the generic message
+              errorMessage = `${errorMessage}. Server response: ${textError.substring(0, 200)}...`;
+            } catch (textParseError) {
+              // If reading as text also fails, stick with the initial status message.
+            }
+          }
+          throw new Error(errorMessage);
         }
         const data: User[] = await response.json();
         setUsers(data);
