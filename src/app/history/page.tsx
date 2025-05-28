@@ -32,18 +32,18 @@ export default function AttendanceHistoryPage() {
       setIsLoading(true);
       setError(null);
       try {
-        // Fetching for a default user ID.
-        // In a real app, replace DEFAULT_USER_ID with the actual logged-in user's ID.
         const response = await fetch(`/api/attendance?userId=${DEFAULT_USER_ID}`);
         if (!response.ok) {
           let errorMessage = `Error: ${response.status} ${response.statusText}`;
           try {
+            // Try to parse the error response as JSON
             const errorData = await response.json();
             if (errorData && errorData.error) {
-              errorMessage = errorData.error;
+              errorMessage = errorData.error; // Use specific error from API if available
             }
           } catch (jsonError) {
-            // Fallback if response is not JSON
+            // If JSON parsing fails, the response body might not be JSON or empty.
+            // Stick with the statusText.
           }
           throw new Error(errorMessage);
         }
@@ -111,6 +111,7 @@ export default function AttendanceHistoryPage() {
                 <p>Error loading records: {error}</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Please ensure user ID {DEFAULT_USER_ID} exists and has attendance data, or try again later.
+                  Verify the backend API at /api/attendance is responding correctly.
                 </p>
               </div>
             )}
