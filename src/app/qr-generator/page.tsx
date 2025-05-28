@@ -45,7 +45,7 @@ export default function QrGeneratorPage() {
         downloadLink.download = `attendease-qr-user-${userId || 'general'}.png`;
         document.body.appendChild(downloadLink);
         downloadLink.click();
-        document.body.removeChild(downloadLink);
+        downloadLink.remove(); // Use remove() for safer removal
         toast({
           title: "QR Code Downloading",
           description: "Your QR code image is being downloaded.",
