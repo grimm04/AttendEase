@@ -24,7 +24,7 @@ export default function Home() {
       const storedActionTime = localStorage.getItem('lastActionTime');
       if (storedActionTime) {
         setLastActionTime(new Date(storedActionTime));
-        setStatusMessage(\`Clocked in since \${new Date(storedActionTime).toLocaleTimeString()}\`);
+        setStatusMessage(`Clocked in since ${new Date(storedActionTime).toLocaleTimeString()}`);
       }
     }
     const storedLocationVerified = localStorage.getItem('isLocationVerified');
@@ -45,12 +45,12 @@ export default function Home() {
     const now = new Date();
     setIsClockedIn(true);
     setLastActionTime(now);
-    setStatusMessage(\`Clocked in at \${now.toLocaleTimeString()}\`);
+    setStatusMessage(`Clocked in at ${now.toLocaleTimeString()}`);
     localStorage.setItem('isClockedIn', 'true');
     localStorage.setItem('lastActionTime', now.toISOString());
     toast({
       title: "Clocked In",
-      description: \`Successfully clocked in at \${now.toLocaleTimeString()}\`,
+      description: `Successfully clocked in at ${now.toLocaleTimeString()}`,
       action: <CheckCircle className="text-green-500" />,
     });
   };
@@ -59,14 +59,14 @@ export default function Home() {
     const now = new Date();
     setIsClockedIn(false);
     setLastActionTime(now);
-    setStatusMessage(\`Clocked out at \${now.toLocaleTimeString()}.\`);
+    setStatusMessage(`Clocked out at ${now.toLocaleTimeString()}.`);
     localStorage.setItem('isClockedIn', 'false');
     localStorage.setItem('lastActionTime', now.toISOString());
     localStorage.removeItem('isLocationVerified'); // Reset location verification on clock out
     setIsLocationVerified(false);
     toast({
       title: "Clocked Out",
-      description: \`Successfully clocked out at \${now.toLocaleTimeString()}\`,
+      description: `Successfully clocked out at ${now.toLocaleTimeString()}`,
       action: <LogOut className="text-red-500" />,
     });
   };
