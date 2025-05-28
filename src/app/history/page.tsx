@@ -1,28 +1,80 @@
+
+"use client";
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, History as HistoryIcon } from 'lucide-react';
+import { ArrowLeft, History as HistoryIcon, Loader2, AlertTriangle } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
-// Sample Data Type
+// Updated Data Type to match API response
 interface AttendanceRecord {
   id: string;
+  user_id: number;
   date: string;
-  clockInTime: string;
-  clockOutTime: string;
-  status: 'Present' | 'Absent' | 'Late';
+  clock_in_time: string | null;
+  clock_out_time: string | null;
+  status: 'Present' | 'Absent' | 'Late' | 'Clocked In';
+  location_verified: boolean;
 }
 
-// Sample Data
-const sampleAttendanceData: AttendanceRecord[] = [
-  { id: '1', date: '2024-07-20', clockInTime: '09:00 AM', clockOutTime: '05:00 PM', status: 'Present' },
-  { id: '2', date: '2024-07-19', clockInTime: '09:15 AM', clockOutTime: '05:05 PM', status: 'Late' },
-  { id: '3', date: '2024-07-18', clockInTime: '-', clockOutTime: '-', status: 'Absent' },
-  { id: '4', date: '2024-07-17', clockInTime: '08:55 AM', clockOutTime: '04:50 PM', status: 'Present' },
-  { id: '5', date: '2024-07-16', clockInTime: '09:05 AM', clockOutTime: '05:10 PM', status: 'Present' },
-];
+// Placeholder User ID - In a real app, this would come from auth
+const DEFAULT_USER_ID = 1; 
 
 export default function AttendanceHistoryPage() {
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchAttendanceHistory() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        // Fetching for a default user ID.
+        // In a real app, replace DEFAULT_USER_ID with the actual logged-in user's ID.
+        const response = await fetch(`/api/attendance?userId=${DEFAULT_USER_ID}`);
+        if (!response.ok) {
+          let errorMessage = `Error: ${response.status} ${response.statusText}`;
+          try {
+            const errorData = await response.json();
+            if (errorData && errorData.error) {
+              errorMessage = errorData.error;
+            }
+          } catch (jsonError) {
+            // Fallback if response is not JSON
+          }
+          throw new Error(errorMessage);
+        }
+        const data: AttendanceRecord[] = await response.json();
+        setAttendanceRecords(data);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch attendance history.');
+        setAttendanceRecords([]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchAttendanceHistory();
+  }, []);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Present':
+      case 'Clocked In':
+        return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+      case 'Late':
+        return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+      case 'Absent':
+        return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+      default:
+        return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+    }
+  };
+
+
   return (
     <div className="flex flex-col items-center min-h-screen p-4 sm:p-6 md:p-8 bg-background">
       <header className="mb-8 w-full max-w-4xl">
@@ -35,7 +87,7 @@ export default function AttendanceHistoryPage() {
             <HistoryIcon className="h-10 w-10 text-primary mr-3" />
             <h1 className="text-3xl sm:text-4xl font-bold text-primary">Attendance History</h1>
         </div>
-        <p className="text-center text-muted-foreground">Review your past attendance records.</p>
+        <p className="text-center text-muted-foreground">Review your past attendance records (User ID: {DEFAULT_USER_ID}).</p>
       </header>
 
       <main className="w-full max-w-4xl">
@@ -43,40 +95,55 @@ export default function AttendanceHistoryPage() {
           <CardHeader>
             <CardTitle>Your Records</CardTitle>
             <CardDescription>
-              Showing the last {sampleAttendanceData.length} attendance records.
+              {isLoading ? "Loading records..." : `Showing ${attendanceRecords.length} attendance records.`}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Clock-In Time</TableHead>
-                  <TableHead>Clock-Out Time</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sampleAttendanceData.map((record) => (
-                  <TableRow key={record.id}>
-                    <TableCell className="font-medium">{record.date}</TableCell>
-                    <TableCell>{record.clockInTime}</TableCell>
-                    <TableCell>{record.clockOutTime}</TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold
-                        ${record.status === 'Present' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : ''}
-                        ${record.status === 'Late' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' : ''}
-                        ${record.status === 'Absent' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : ''}
-                      `}>
-                        {record.status}
-                      </span>
-                    </TableCell>
+            {isLoading && (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="mr-2 h-6 w-6 animate-spin text-primary" />
+                <p className="text-muted-foreground">Loading attendance records...</p>
+              </div>
+            )}
+            {error && !isLoading && (
+              <div className="flex flex-col items-center justify-center py-6 text-destructive">
+                <AlertTriangle className="mr-2 h-6 w-6" />
+                <p>Error loading records: {error}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Please ensure user ID {DEFAULT_USER_ID} exists and has attendance data, or try again later.
+                </p>
+              </div>
+            )}
+            {!isLoading && !error && attendanceRecords.length === 0 && (
+              <p className="text-center text-muted-foreground py-6">No attendance records found for User ID: {DEFAULT_USER_ID}.</p>
+            )}
+            {!isLoading && !error && attendanceRecords.length > 0 && (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Clock-In</TableHead>
+                    <TableHead>Clock-Out</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Location Verified</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            {sampleAttendanceData.length === 0 && (
-              <p className="text-center text-muted-foreground mt-4">No attendance records found.</p>
+                </TableHeader>
+                <TableBody>
+                  {attendanceRecords.map((record) => (
+                    <TableRow key={record.id}>
+                      <TableCell className="font-medium">{record.date}</TableCell>
+                      <TableCell>{record.clock_in_time || '-'}</TableCell>
+                      <TableCell>{record.clock_out_time || '-'}</TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(record.status)}`}>
+                          {record.status}
+                        </span>
+                      </TableCell>
+                       <TableCell>{record.location_verified ? 'Yes' : 'No'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>
