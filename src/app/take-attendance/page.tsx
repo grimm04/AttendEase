@@ -50,21 +50,50 @@ function TakeAttendanceContent() {
             body: JSON.stringify({ userId: parseInt(userId), locationVerified: true }), // Assuming location is verified by QR scan
           });
 
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || `Failed to clock in. Status: ${response.status}`);
+          let data;
+          if (response.ok) {
+            try {
+              data = await response.json();
+              // Further checks on 'data' can be done here if API sends success payloads
+              // that might still indicate logical errors not caught by HTTP status.
+            } catch (jsonParseError: any) {
+              console.error("API response was OK, but failed to parse JSON:", jsonParseError);
+              throw new Error("Received an invalid successful response from the server. Please check console for details.");
+            }
+          } else {
+            // response.ok is false (e.g., 4xx, 5xx errors)
+            let apiErrorMessage = `Failed to clock in. Status: ${response.status} ${response.statusText}`;
+            try {
+              const errorJson = await response.json(); // Try to get a JSON error message from the API
+              if (errorJson && errorJson.error) {
+                apiErrorMessage = errorJson.error;
+              }
+            } catch (e) {
+              // Failed to parse error response as JSON, it's likely HTML or plain text.
+              const errorText = await response.text();
+              console.error(`API error response was not JSON (Status: ${response.status}). Body:`, errorText.substring(0, 500));
+              if (errorText.toLowerCase().includes("<!doctype html>")) {
+                apiErrorMessage = "The server returned an HTML error page. This usually indicates a server-side problem or an incorrect API URL.";
+              } else if (errorText) {
+                // Keep the error message concise for the user
+                apiErrorMessage = `Server error (status ${response.status}): An unexpected response was received.`;
+              }
+              // else, stick with the default statusText message initially set
+            }
+            throw new Error(apiErrorMessage);
           }
           
+          // If we reach here, the operation was successful and 'data' contains the response payload.
           if (typeof window !== 'undefined') {
             localStorage.setItem('currentUserId', userId);
           }
           setConfirmationStatus('success');
           toast({
             title: "Attendance Marked!",
-            description: `Attendance successfully recorded for User ID: ${userId}.`,
+            description: `Attendance successfully recorded for User ID: ${userId}. Message: ${data.message || ''}`,
             action: <CheckCircle className="text-green-500" />,
           });
+
         } catch (err: any) {
           console.error("Clock-in error:", err);
           setErrorMessage(err.message || "An unexpected error occurred while marking attendance.");
@@ -185,3 +214,4 @@ export default function TakeAttendancePage() {
     </Suspense>
   );
 }
+
