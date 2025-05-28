@@ -3,10 +3,12 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, LayoutDashboard as DashboardIcon, ShieldAlert, Users as UsersIcon, Loader2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard as DashboardIcon, ShieldAlert, Users as UsersIcon, Loader2, AlertTriangle, LogOut } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
 
 interface User {
   id: number;
@@ -16,33 +18,43 @@ interface User {
 
 export default function ReportingDashboardPage() {
   const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null); // null initially, then true/false
+  const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const adminLoggedIn = localStorage.getItem('isAdminLoggedIn') === 'true';
+      if (!adminLoggedIn) {
+        router.replace('/admin-login');
+      } else {
+        setIsAuthenticated(true);
+      }
+    }
+  }, [router]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return; // Don't fetch if not authenticated
+
     async function fetchUsers() {
       try {
-        setIsLoading(true);
+        setIsLoadingUsers(true);
         setError(null);
         const response = await fetch('/api/users');
         if (!response.ok) {
           let errorMessage = `Failed to fetch users: ${response.status} ${response.statusText}`;
           try {
-            // Try to parse the error response as JSON
             const errorData = await response.json();
             if (errorData && errorData.error) {
-              errorMessage = errorData.error; // Use specific error from API if available
+              errorMessage = errorData.error;
             }
           } catch (jsonError) {
-            // If JSON parsing fails, the response body might not be JSON.
-            // Try to get plain text for more context, e.g. if it's an HTML error page.
-            try {
+             try {
               const textError = await response.text();
-              // Append a snippet of the text error to the generic message
               errorMessage = `${errorMessage}. Server response: ${textError.substring(0, 200)}...`;
-            } catch (textParseError) {
-              // If reading as text also fails, stick with the initial status message.
-            }
+            } catch (textParseError) {}
           }
           throw new Error(errorMessage);
         }
@@ -52,27 +64,64 @@ export default function ReportingDashboardPage() {
         setError(err.message);
         setUsers([]);
       } finally {
-        setIsLoading(false);
+        setIsLoadingUsers(false);
       }
     }
     fetchUsers();
-  }, []);
+  }, [isAuthenticated]);
+
+  const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+        localStorage.removeItem('isAdminLoggedIn');
+    }
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    });
+    router.push('/'); // Redirect to home page after logout
+  };
+
+  if (isAuthenticated === null) {
+    // Still checking authentication, show a loader or minimal content
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    // This case should ideally be handled by the redirect, but as a fallback:
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+        <p className="text-muted-foreground mb-4">You need to be logged in as an admin to view this page.</p>
+        <Link href="/admin-login" passHref>
+          <Button>Go to Admin Login</Button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center min-h-screen p-4 sm:p-6 md:p-8 bg-background">
-       <header className="mb-8 w-full max-w-4xl text-center">
-        <div className="flex justify-start w-full">
+       <header className="mb-8 w-full max-w-4xl">
+        <div className="flex justify-between items-center w-full mb-4">
           <Link href="/" passHref>
-            <Button variant="outline" className="mb-4">
+            <Button variant="outline">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back to Home
             </Button>
           </Link>
+          <Button variant="destructive" onClick={handleLogout}>
+            <LogOut className="mr-2 h-4 w-4" /> Logout
+          </Button>
         </div>
         <div className="flex items-center justify-center mb-2">
             <DashboardIcon className="h-10 w-10 text-primary mr-3" />
             <h1 className="text-3xl sm:text-4xl font-bold text-primary">Reporting Dashboard</h1>
         </div>
-        <p className="text-muted-foreground">Generate and view attendance reports, and manage users.</p>
+        <p className="text-center text-muted-foreground">Generate and view attendance reports, and manage users.</p>
       </header>
       
       <main className="w-full max-w-4xl space-y-6">
@@ -91,14 +140,10 @@ export default function ReportingDashboardPage() {
               The reporting dashboard provides tools for administrators to generate detailed attendance reports,
               manage user data, and oversee overall attendance patterns.
             </p>
-            <p className="mt-4 text-sm text-accent-foreground bg-accent/20 p-3 rounded-md">
-              For demonstration purposes, some features are placeholders. In a full application,
-              this would be a restricted area with comprehensive functionalities.
-            </p>
             <img 
               src="https://placehold.co/600x300.png" 
               alt="Placeholder graph" 
-              data-ai-hint="dashboard chart" 
+              data-ai-hint="dashboard chart"
               className="mt-6 rounded-md shadow-sm"
             />
           </CardContent>
@@ -115,23 +160,23 @@ export default function ReportingDashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading && (
+            {isLoadingUsers && (
               <div className="flex items-center justify-center py-6">
                 <Loader2 className="mr-2 h-6 w-6 animate-spin text-primary" />
                 <p className="text-muted-foreground">Loading users...</p>
               </div>
             )}
-            {error && !isLoading && (
+            {error && !isLoadingUsers && (
               <div className="flex flex-col items-center justify-center py-6 text-destructive">
                 <AlertTriangle className="mr-2 h-6 w-6" />
                 <p>Error loading users: {error}</p>
                  <p className="text-sm text-muted-foreground mt-1">Make sure the backend API at /api/users is running correctly.</p>
               </div>
             )}
-            {!isLoading && !error && users.length === 0 && (
+            {!isLoadingUsers && !error && users.length === 0 && (
               <p className="text-center text-muted-foreground py-6">No users found.</p>
             )}
-            {!isLoading && !error && users.length > 0 && (
+            {!isLoadingUsers && !error && users.length > 0 && (
               <Table>
                 <TableHeader>
                   <TableRow>
