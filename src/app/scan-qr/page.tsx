@@ -19,7 +19,7 @@ export default function ScanQrPage() {
   const { toast } = useToast();
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // For camera initialization
+  const [isLoading, setIsLoading] = useState(true); // For camera initialization/starting
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isScannerActive, setIsScannerActive] = useState(false); // For camera scanner
@@ -28,22 +28,23 @@ export default function ScanQrPage() {
   const [isScanningFile, setIsScanningFile] = useState(false);
 
   useEffect(() => {
+    console.log("ScanQrPage mounting. Initializing Html5Qrcode instance...");
+    // Ensure Html5Qrcode is only initialized once.
     if (!html5QrCodeRef.current) {
-      console.log("Initializing Html5Qrcode instance...");
-      try {
-        html5QrCodeRef.current = new Html5Qrcode(
-            QR_SCANNER_ELEMENT_ID,
-            { 
-              formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-              verbose: true 
-            }
-        );
-      } catch (e) {
-        console.error("Failed to initialize Html5Qrcode:", e);
-        setError("Failed to initialize QR scanner component.");
-        setIsLoading(false);
-        return;
-      }
+        try {
+            html5QrCodeRef.current = new Html5Qrcode(
+                QR_SCANNER_ELEMENT_ID,
+                { 
+                  formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+                  verbose: true 
+                }
+            );
+        } catch (e) {
+            console.error("Failed to initialize Html5Qrcode:", e);
+            setError("Failed to initialize QR scanner component. Ensure the 'qr-reader' element exists.");
+            setIsLoading(false);
+            return;
+        }
     }
 
     const requestCameraPermission = async () => {
@@ -52,17 +53,25 @@ export default function ScanQrPage() {
       console.log("Requesting camera permission...");
       setIsLoading(true);
       try {
+        // Test if getUserMedia is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error("Browser does not support camera access (getUserMedia).");
+        }
         await navigator.mediaDevices.getUserMedia({ video: true });
         console.log("Camera permission granted.");
         setHasCameraPermission(true);
-      } catch (err) {
-        console.error("Camera permission denied:", err);
-        setError("Camera permission is required. Please enable camera access in your browser settings and refresh.");
+      } catch (err: any) {
+        console.error("Camera permission denied or error:", err);
+        let permissionError = "Camera permission is required. Please enable camera access in your browser settings and refresh.";
+        if (err.message && err.message.includes("getUserMedia")) {
+            permissionError = "Could not access camera. It might be in use by another application or not available.";
+        }
+        setError(permissionError);
         setHasCameraPermission(false);
         toast({
           variant: "destructive",
           title: "Camera Access Denied",
-          description: "Enable camera permissions and refresh to use the QR scanner.",
+          description: permissionError,
         });
       } finally {
         setIsLoading(false);
@@ -71,13 +80,15 @@ export default function ScanQrPage() {
 
     requestCameraPermission();
     
+    // Cleanup function
     return () => {
       console.log("ScanQrPage unmounting. Attempting to stop scanner if active.");
-      if (html5QrCodeRef.current && html5QrCodeRef.current.getState() === Html5QrcodeScannerState.SCANNING) {
-        html5QrCodeRef.current.stop()
+      const scanner = html5QrCodeRef.current;
+      if (scanner && scanner.getState() === Html5QrcodeScannerState.SCANNING) {
+        scanner.stop()
           .then(() => {
             console.log("QR Scanner stopped on unmount/cleanup.");
-            setIsScannerActive(false);
+            setIsScannerActive(false); // Explicitly set inactive
           })
           .catch(err => {
             console.error("Error stopping QR scanner on unmount/cleanup:", err);
@@ -91,7 +102,7 @@ export default function ScanQrPage() {
     const scanner = html5QrCodeRef.current;
     if (scanner && hasCameraPermission === true && !isScannerActive && !scanResult && !isScanningFile) {
       console.log("Attempting to start QR camera scanner...");
-      setIsLoading(true); // Indicate camera starting
+      setIsLoading(true); 
       setError(null);
 
       const qrCodeSuccessCallback = (decodedText: string, decodedResult: any) => {
@@ -108,13 +119,14 @@ export default function ScanQrPage() {
       };
 
       const qrCodeErrorCallback = (errorMessage: string) => {
-        // console.warn(`QR camera scan error (non-fatal): ${errorMessage}`);
+         // This callback is for non-fatal errors during scanning, like QR not found in frame.
+         // console.warn(`QR camera scan error (non-fatal): ${errorMessage}`);
       };
-
+      
       Html5Qrcode.getCameras().then(cameras => {
         if (cameras && cameras.length) {
           const cameraId = cameras[0].id; 
-          console.log(`Using camera: ${cameras[0].label} (ID: ${cameraId})`);
+          console.log(`Starting camera: ${cameras[0].label} (ID: ${cameraId})`);
           scanner.start(
             cameraId,
             {
@@ -137,13 +149,16 @@ export default function ScanQrPage() {
             let userFriendlyError = `Failed to start QR camera scanner.`;
             if (err.name === "NotAllowedError" || (err.message && err.message.toLowerCase().includes("permission denied"))) {
                 userFriendlyError = "Camera access was denied. Please enable it in your browser settings and refresh.";
-            } else if (err.message && err.message.toLowerCase().includes("camera not found")) {
+            } else if (err.message && (err.message.toLowerCase().includes("camera not found") || err.message.toLowerCase().includes("device not found"))) {
                  userFriendlyError = "No camera found or it's in use by another application.";
+            } else if (err.name === "OverconstrainedError") {
+                userFriendlyError = "Could not satisfy camera constraints (e.g. resolution).";
             } else {
                  userFriendlyError = "Could not start camera. Ensure it's not in use by another app and permissions are granted.";
             }
             setError(userFriendlyError);
             setIsLoading(false);
+            setIsScannerActive(false); // Ensure it's marked as not active
             toast({
                 variant: "destructive",
                 title: "Camera Scanner Error",
@@ -161,7 +176,8 @@ export default function ScanQrPage() {
         setIsLoading(false);
       });
     }
-  }, [hasCameraPermission, isScannerActive, scanResult, toast, isScanningFile]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasCameraPermission, isScannerActive, scanResult, isScanningFile]);
 
 
   useEffect(() => {
@@ -176,7 +192,7 @@ export default function ScanQrPage() {
         router.push(scanResult);
       } else {
         setError("Invalid QR code scanned. Please scan an AttendEase attendance QR code.");
-        setScanResult(null); 
+        setScanResult(null); // Reset to allow new scan
         setIsScannerActive(false); // Allow camera scanner to restart if needed
          toast({
             variant: "destructive",
@@ -185,7 +201,8 @@ export default function ScanQrPage() {
         });
       }
     }
-  }, [scanResult, router, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanResult, router]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -199,7 +216,8 @@ export default function ScanQrPage() {
   };
 
   const handleScanUploadedFile = async () => {
-    if (!selectedFile || !html5QrCodeRef.current) {
+    const scanner = html5QrCodeRef.current;
+    if (!selectedFile || !scanner) {
       toast({
         variant: "destructive",
         title: "No File Selected",
@@ -210,21 +228,23 @@ export default function ScanQrPage() {
 
     setIsScanningFile(true);
     setError(null);
-    setScanResult(null);
+    setScanResult(null); // Reset previous scan result
 
-    if (html5QrCodeRef.current.getState() === Html5QrcodeScannerState.SCANNING) {
+    // Stop camera scanner if it's running
+    if (scanner.getState() === Html5QrcodeScannerState.SCANNING) {
       try {
-        await html5QrCodeRef.current.stop();
+        await scanner.stop();
         setIsScannerActive(false);
         console.log("Camera scanner stopped for file scan.");
       } catch (stopErr) {
         console.error("Could not stop camera scanner for file scan:", stopErr);
+        // Continue with file scan even if stopping camera fails
       }
     }
 
     try {
       console.log(`Scanning file: ${selectedFile.name}`);
-      const decodedText = await html5QrCodeRef.current.scanFile(selectedFile, false);
+      const decodedText = await scanner.scanFile(selectedFile, false); // 'false' means don't show viewfinder for file scan
       console.log("File Scan Success!", { decodedText });
       setScanResult(decodedText);
     } catch (err: any) {
@@ -232,6 +252,8 @@ export default function ScanQrPage() {
       let userFriendlyError = "Failed to scan QR code from image.";
        if (err.name === "NotFoundError" || (err.message && err.message.toLowerCase().includes("no qr code found"))) {
             userFriendlyError = "QR code not found in the image or image is unclear.";
+        } else {
+            userFriendlyError = `File scan failed: ${err.message || err.name || 'Unknown error'}`;
         }
       setError(userFriendlyError);
       toast({
@@ -305,13 +327,13 @@ export default function ScanQrPage() {
               type="file"
               accept="image/*"
               onChange={handleFileChange}
-              disabled={isScanningFile || isLoading || isScannerActive}
+              disabled={isScanningFile || isLoading} // Allow file selection even if camera is starting/active
               id="qrFile"
             />
             <Button
               onClick={handleScanUploadedFile}
               className="w-full"
-              disabled={!selectedFile || isScanningFile || isLoading || isScannerActive}
+              disabled={!selectedFile || isScanningFile || isLoading} // Allow scan trigger if camera is just starting
             >
               {isScanningFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileImage className="mr-2 h-4 w-4" /> }
               Scan Uploaded Image
@@ -342,3 +364,4 @@ export default function ScanQrPage() {
     </div>
   );
 }
+
