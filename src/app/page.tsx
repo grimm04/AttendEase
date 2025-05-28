@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogIn, LogOut, MapPin, History, LayoutDashboard, CheckCircle, AlertCircle, Users } from 'lucide-react';
+import { LogIn, LogOut, MapPin, History, LayoutDashboard, CheckCircle, AlertCircle, Users, QrCode } from 'lucide-react';
 import CurrentDateTime from '@/components/CurrentDateTime';
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,7 +24,7 @@ export default function Home() {
       const storedActionTime = localStorage.getItem('lastActionTime');
       if (storedActionTime) {
         setLastActionTime(new Date(storedActionTime));
-        setStatusMessage(`Clocked in since ${new Date(storedActionTime).toLocaleTimeString()}`);
+        setStatusMessage(\`Clocked in since \${new Date(storedActionTime).toLocaleTimeString()}\`);
       }
     }
     const storedLocationVerified = localStorage.getItem('isLocationVerified');
@@ -44,12 +45,12 @@ export default function Home() {
     const now = new Date();
     setIsClockedIn(true);
     setLastActionTime(now);
-    setStatusMessage(`Clocked in at ${now.toLocaleTimeString()}`);
+    setStatusMessage(\`Clocked in at \${now.toLocaleTimeString()}\`);
     localStorage.setItem('isClockedIn', 'true');
     localStorage.setItem('lastActionTime', now.toISOString());
     toast({
       title: "Clocked In",
-      description: `Successfully clocked in at ${now.toLocaleTimeString()}`,
+      description: \`Successfully clocked in at \${now.toLocaleTimeString()}\`,
       action: <CheckCircle className="text-green-500" />,
     });
   };
@@ -58,14 +59,14 @@ export default function Home() {
     const now = new Date();
     setIsClockedIn(false);
     setLastActionTime(now);
-    setStatusMessage(`Clocked out at ${now.toLocaleTimeString()}.`);
+    setStatusMessage(\`Clocked out at \${now.toLocaleTimeString()}.\`);
     localStorage.setItem('isClockedIn', 'false');
     localStorage.setItem('lastActionTime', now.toISOString());
     localStorage.removeItem('isLocationVerified'); // Reset location verification on clock out
     setIsLocationVerified(false);
     toast({
       title: "Clocked Out",
-      description: `Successfully clocked out at ${now.toLocaleTimeString()}`,
+      description: \`Successfully clocked out at \${now.toLocaleTimeString()}\`,
       action: <LogOut className="text-red-500" />,
     });
   };
@@ -152,6 +153,11 @@ export default function Home() {
             <Link href="/dashboard" passHref>
               <Button variant="outline" className="w-full" size="lg">
                 <LayoutDashboard className="mr-2 h-5 w-5" /> Reporting Dashboard
+              </Button>
+            </Link>
+            <Link href="/qr-generator" passHref>
+              <Button variant="outline" className="w-full col-span-1 sm:col-span-2" size="lg">
+                <QrCode className="mr-2 h-5 w-5" /> Generate Attendance QR Code
               </Button>
             </Link>
           </CardContent>
